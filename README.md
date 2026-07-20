@@ -113,6 +113,8 @@ The optional companion collector uses a visible Chrome window on your computer a
 
 The browser profile is retained in `.collector-profile/` so sessions and store choices survive restarts. Never commit that directory or share the collector secret. Retailer pages can change, so review low-confidence matches before relying on them.
 
+On Windows, run `npm run collector:install` once to register the **Open desktop collector** button. Browsers will ask for confirmation before opening the registered local launcher. A phone cannot start the collector on a separate Windows computer.
+
 ## CSV Import
 
 The importer accepts:

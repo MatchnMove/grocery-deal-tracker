@@ -141,3 +141,13 @@ export async function requestAutomaticPriceCollectionAction() {
   revalidatePath("/prices");
   revalidatePath("/dashboard");
 }
+
+export async function resetAutomaticPriceCollectionAction() {
+  const user = await requireUser();
+  await prisma.priceCollectionRun.updateMany({
+    where: { userId: user.id, status: "RUNNING", lockKey: "desktop-collector" },
+    data: { status: "FAILED", endedAt: new Date(), errors: ["Collection was reset by the administrator."] }
+  });
+  revalidatePath("/prices");
+  revalidatePath("/dashboard");
+}

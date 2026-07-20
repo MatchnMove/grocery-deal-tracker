@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Badge, Card, Field, inputClass } from "@/components/ui";
-import { addManualPriceAction, requestAutomaticPriceCollectionAction } from "@/lib/actions/prices";
+import { addManualPriceAction, requestAutomaticPriceCollectionAction, resetAutomaticPriceCollectionAction } from "@/lib/actions/prices";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { priceText, quantityText } from "@/lib/data";
@@ -36,11 +36,17 @@ export default async function PricesPage() {
       <Card className="grid gap-3">
         <h2 className="text-lg font-semibold">Desktop price collector</h2>
         <p className="text-sm text-ink/65">Start the companion collector on your computer, then request a visible-browser scan of your configured stores.</p>
-        <form action={requestAutomaticPriceCollectionAction}>
-          <button className="touch-target rounded-md bg-leaf px-4 py-2 font-semibold text-white" type="submit" disabled={latestRun?.status === "RUNNING"}>
-            {latestRun?.status === "RUNNING" ? "Waiting for desktop collector…" : "Collect latest prices"}
-          </button>
-        </form>
+        <div className="flex flex-wrap gap-2">
+          <form action={requestAutomaticPriceCollectionAction}>
+            <button className="touch-target rounded-md bg-leaf px-4 py-2 font-semibold text-white" type="submit" disabled={latestRun?.status === "RUNNING"}>
+              {latestRun?.status === "RUNNING" ? "Waiting for desktop collector…" : "Collect latest prices"}
+            </button>
+          </form>
+          <form action={resetAutomaticPriceCollectionAction}>
+            <button className="touch-target rounded-md border border-berry/30 bg-white px-4 py-2 font-semibold text-berry" type="submit" disabled={latestRun?.status !== "RUNNING"}>Reset</button>
+          </form>
+          <a className="touch-target rounded-md border border-leaf/30 bg-white px-4 py-2 font-semibold text-leaf" href="grocerycollector://start">Open desktop collector</a>
+        </div>
         {latestRun ? <p className="text-xs text-ink/60">Latest run: {latestRun.status.replaceAll("_", " ").toLowerCase()} · {latestRun.pricesAdded} prices added · started {latestRun.startedAt.toLocaleString("en-NZ")}</p> : null}
       </Card>
       <Card className="grid gap-3">
