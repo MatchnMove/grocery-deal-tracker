@@ -23,14 +23,7 @@ export async function createSession(userId: string) {
   const tokenHash = hashWithSecret(rawToken);
   const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 30);
   await prisma.session.create({ data: { userId, tokenHash, expiresAt } });
-  const cookieStore = await cookies();
-  cookieStore.set(sessionCookieName, rawToken, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    expires: expiresAt
-  });
+  return { rawToken, expiresAt };
 }
 
 export async function clearSession() {

@@ -2,7 +2,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { createSession, verifyPassword } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { checkRateLimit, resetRateLimit } from "@/lib/rate-limit";
+import { sessionCookieName } from "@/lib/session-cookie";
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -24,7 +25,23 @@ export async function POST(request: NextRequest) {
   if (!user || !(await verifyPassword(parsed.data.password, user.passwordHash))) {
     return NextResponse.json({ error: "Email or password is incorrect." }, { status: 401 });
   }
-  await createSession(user.id);
+  const session = await createSession(user.id);
   await prisma.auditLog.create({ data: { userId: user.id, action: "login", entity: "User", entityId: user.id } });
-  return NextResponse.redirect(new URL("/dashboard", request.url), { status: 303 });
+  resetRateLimit(`login:${ip}`);
+
+  // A relative Location avoids redirecting to Railway's internal proxy origin.
+  // Set the cookie on this response so it is guaranteed to reach the browser
+  // before the redirected dashboard request.
+  const response = new NextResponse(null, {
+    status: 303,
+    headers: { Location: "/dashboard" }
+  });
+  response.cookies.set(sessionCookieName, session.rawToken, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    expires: session.expiresAt
+  });
+  return response;
 }
