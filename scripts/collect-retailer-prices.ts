@@ -1,6 +1,7 @@
 import { chromium, type Page } from "playwright-core";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
+import { categoryExclusions, productPrices } from "../lib/collector-parsing";
 
 type Unit = "EACH" | "PACK" | "TIN" | "JAR" | "LOAF" | "GRAM" | "KILOGRAM" | "MILLILITRE" | "LITRE";
 type Job = {
@@ -61,13 +62,13 @@ async function scrape(page: Page, store: Job["stores"][number], need: Job["requi
   // Keep this callback self-contained and free of nested functions. The collector
   // runs through tsx/esbuild, whose helper functions are unavailable inside the
   // isolated browser execution context used by Playwright.
-  const candidates = await page.locator('a[href]').evaluateAll((nodes) => {
+  const candidates = await page.locator('article, [data-testid*="product" i], [class*="product-card" i], [class*="productcard" i], [class*="product-tile" i], [class*="producttile" i], a[href]').evaluateAll((nodes) => {
     const found: Record<string, string> = {};
     for (const node of nodes) {
-      const anchor = node as HTMLAnchorElement;
-      const href = anchor.href;
-      if (!href || !/\/(?:shop\/)?(?:product|products|productdetails)\b/i.test(href)) continue;
-      let container: Element | null = anchor;
+      const anchor = (node.matches('a[href]') ? node : node.querySelector('a[href]')) as HTMLAnchorElement | null;
+      const href = anchor?.href ?? "";
+      if (!href || /^(?:javascript:|about:)/i.test(href)) continue;
+      let container: Element | null = node.matches('a[href]') ? node : node;
       for (let depth = 0; container && depth < 7; depth += 1) {
         const text = (container.textContent ?? "").replace(/\s+/g, " ").trim();
         if (/\$\s*\d/.test(text) && text.length <= 1200 && (!found[href] || text.length < found[href].length)) {
@@ -81,8 +82,9 @@ async function scrape(page: Page, store: Job["stores"][number], need: Job["requi
   const ranked = candidates.flatMap((candidate) => {
     const lower = candidate.text.toLowerCase();
     if (need.excludedTerms.length && includesAny(lower, need.excludedTerms)) return [];
+    if (includesAny(lower, categoryExclusions(need.name))) return [];
     if (need.acceptableTerms.length && !includesAny(lower, need.acceptableTerms)) return [];
-    const prices = [...candidate.text.matchAll(/\$\s*(\d{1,4}(?:\.\d{1,2})?)/g)].map((match) => Math.round(Number(match[1]) * 100)).filter((price) => price > 0);
+    const prices = productPrices(candidate.text);
     if (!prices.length) return [];
     const pack = packageDetails(candidate.text, need.requiredUnit);
     if (!comparable(need.requiredUnit, pack.unit)) return [];
