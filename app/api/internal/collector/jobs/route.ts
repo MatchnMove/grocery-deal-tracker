@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { requireCronSecret } from "@/lib/env";
+import { requireCollectorSecret } from "@/lib/env";
 import { regenerateShoppingList } from "@/lib/data";
 
 const resultSchema = z.object({
@@ -28,7 +28,7 @@ const submissionSchema = z.object({
 
 function authorised(request: NextRequest) {
   const supplied = request.headers.get("x-collector-secret");
-  return Boolean(supplied && supplied === requireCronSecret());
+  return Boolean(supplied && supplied === requireCollectorSecret());
 }
 
 export async function GET(request: NextRequest) {

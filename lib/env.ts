@@ -4,6 +4,7 @@ const serverEnvSchema = z.object({
   DATABASE_URL: z.string().min(1).optional(),
   AUTH_SECRET: z.string().min(32).optional(),
   CRON_SECRET: z.string().min(16).optional(),
+  COLLECTOR_SECRET: z.string().min(32).optional(),
   NEXT_PUBLIC_APP_URL: z.string().url().optional(),
   DEFAULT_TIMEZONE: z.string().default("Pacific/Auckland"),
   DEFAULT_FUEL_PRICE_NZD: z.string().default("2.70"),
@@ -26,6 +27,14 @@ export function requireCronSecret() {
   const secret = process.env.CRON_SECRET;
   if (!secret || secret.length < 16) {
     throw new Error("CRON_SECRET must be configured");
+  }
+  return secret;
+}
+
+export function requireCollectorSecret() {
+  const secret = process.env.COLLECTOR_SECRET;
+  if (!secret || secret.length < 32) {
+    throw new Error("COLLECTOR_SECRET must be configured with at least 32 characters");
   }
   return secret;
 }

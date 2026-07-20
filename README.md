@@ -106,7 +106,7 @@ Manual prices are currently being used.
 The optional companion collector uses a visible Chrome window on your computer and sends timestamped observations to the private app. It does not run inside Railway or bypass retailer access controls, and may ask you to sign in, select a branch or complete a retailer challenge.
 
 1. Set `COLLECTOR_APP_URL` to the deployed app URL.
-2. Set `COLLECTOR_SECRET` to the same value as Railway's `CRON_SECRET`.
+2. Set the same random `COLLECTOR_SECRET` (at least 32 characters) in Railway and on the collector computer.
 3. Run `npm run collector` on a computer with Google Chrome installed and keep it open.
 4. Open Prices in the app and select **Collect latest prices**.
 5. In the visible Chrome window, confirm the correct branch when a retailer asks.
