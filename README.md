@@ -101,6 +101,18 @@ Automatic price collection is not configured.
 Manual prices are currently being used.
 ```
 
+## Desktop Price Collector
+
+The optional companion collector uses a visible Chrome window on your computer and sends timestamped observations to the private app. It does not run inside Railway or bypass retailer access controls, and may ask you to sign in, select a branch or complete a retailer challenge.
+
+1. Set `COLLECTOR_APP_URL` to the deployed app URL.
+2. Set `COLLECTOR_SECRET` to the same value as Railway's `CRON_SECRET`.
+3. Run `npm run collector` on a computer with Google Chrome installed and keep it open.
+4. Open Prices in the app and select **Collect latest prices**.
+5. In the visible Chrome window, confirm the correct branch when a retailer asks.
+
+The browser profile is retained in `.collector-profile/` so sessions and store choices survive restarts. Never commit that directory or share the collector secret. Retailer pages can change, so review low-confidence matches before relying on them.
+
 ## CSV Import
 
 The importer accepts:
