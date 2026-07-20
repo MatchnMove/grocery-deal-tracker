@@ -1,7 +1,7 @@
 export function categoryExclusions(needName: string) {
   const name = needName.toLowerCase();
   if (name.includes("sardine")) return ["cat food", "dog food", "pet food", "catfood"];
-  if (name.includes("roast chicken")) return ["gravy", "stock", "soup", "seasoning", "flavour", "sachet"];
+  if (name.includes("roast chicken")) return ["gravy", "stock", "soup", "seasoning", "flavour", "sachet", "cracker", "chips", "crisps"];
   if (name.includes("salami stick")) return ["sliced", "pepperoni", "pizza"];
   return [];
 }
@@ -19,5 +19,11 @@ export function productPrices(text: string) {
     const cents = Number(match[1]) * 100 + Number(centsText.padEnd(2, "0"));
     if (cents > 0) prices.push(cents);
   }
-  return [...new Set(prices.slice(0, 4))];
+  // Foodstuffs visually splits its shelf price into dollar and cent elements
+  // (for example "21 99 kg") and may only use a dollar sign on the unit price.
+  for (const match of text.matchAll(/(?:^|\s)(\d{1,3})[.\s]+(\d{2})\s*(?:kg|ea|each)\b/gi)) {
+    const cents = Number(match[1]) * 100 + Number(match[2]);
+    if (cents > 0) prices.push(cents);
+  }
+  return [...new Set(prices.slice(0, 6))];
 }
