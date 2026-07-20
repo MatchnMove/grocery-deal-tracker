@@ -5,6 +5,7 @@ import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { priceText, quantityText } from "@/lib/data";
 import { isPriceStale } from "@/lib/price-freshness";
+import { CollectionAutoRefresh } from "@/components/collection-auto-refresh";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +25,7 @@ export default async function PricesPage() {
   ]);
   return (
     <>
+      <CollectionAutoRefresh active={latestRun?.status === "RUNNING"} />
       <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold">Prices</h1>
