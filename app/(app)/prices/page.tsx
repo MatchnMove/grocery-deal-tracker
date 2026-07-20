@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Badge, Card, Field, inputClass } from "@/components/ui";
-import { addManualPriceAction } from "@/lib/actions/prices";
+import { addManualPriceAction, requestAutomaticPriceCollectionAction } from "@/lib/actions/prices";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { priceText, quantityText } from "@/lib/data";
@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 export default async function PricesPage() {
   const user = await requireUser();
-  const [observations, stores, requirements, sources] = await Promise.all([
+  const [observations, stores, requirements, sources, latestRun] = await Promise.all([
     prisma.priceObservation.findMany({
       where: { userId: user.id },
       include: { priceSource: true, storeProduct: { include: { product: true, store: { include: { chain: true } } } } },
@@ -19,7 +19,8 @@ export default async function PricesPage() {
     }),
     prisma.store.findMany({ where: { userId: user.id }, include: { chain: true }, orderBy: [{ chain: { name: "asc" } }, { branchName: "asc" }] }),
     prisma.groceryRequirement.findMany({ where: { userId: user.id }, orderBy: { name: "asc" } }),
-    prisma.priceSource.findMany({ where: { userId: user.id }, orderBy: { name: "asc" } })
+    prisma.priceSource.findMany({ where: { userId: user.id }, orderBy: { name: "asc" } }),
+    prisma.priceCollectionRun.findFirst({ where: { userId: user.id, lockKey: "desktop-collector" }, orderBy: { startedAt: "desc" } })
   ]);
   return (
     <>
@@ -30,6 +31,16 @@ export default async function PricesPage() {
         </div>
         <Link className="touch-target rounded-md bg-leaf px-3 py-2 text-sm font-semibold text-white" href="/prices/import">Import CSV</Link>
       </div>
+      <Card className="grid gap-3">
+        <h2 className="text-lg font-semibold">Desktop price collector</h2>
+        <p className="text-sm text-ink/65">Start the companion collector on your computer, then request a visible-browser scan of your configured stores.</p>
+        <form action={requestAutomaticPriceCollectionAction}>
+          <button className="touch-target rounded-md bg-leaf px-4 py-2 font-semibold text-white" type="submit" disabled={latestRun?.status === "RUNNING"}>
+            {latestRun?.status === "RUNNING" ? "Waiting for desktop collector…" : "Collect latest prices"}
+          </button>
+        </form>
+        {latestRun ? <p className="text-xs text-ink/60">Latest run: {latestRun.status.replaceAll("_", " ").toLowerCase()} · {latestRun.pricesAdded} prices added · started {latestRun.startedAt.toLocaleString("en-NZ")}</p> : null}
+      </Card>
       <Card className="grid gap-3">
         <h2 className="text-lg font-semibold">Source Status</h2>
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">

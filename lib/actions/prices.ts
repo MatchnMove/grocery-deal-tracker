@@ -122,3 +122,22 @@ export async function importCsvPricesAction(formData: FormData) {
   revalidatePath("/prices");
   revalidatePath("/shopping");
 }
+
+export async function requestAutomaticPriceCollectionAction() {
+  const user = await requireUser();
+  const staleBefore = new Date(Date.now() - 30 * 60 * 1000);
+  await prisma.priceCollectionRun.updateMany({
+    where: { userId: user.id, status: "RUNNING", lockKey: "desktop-collector", startedAt: { lt: staleBefore } },
+    data: { status: "FAILED", endedAt: new Date(), errors: ["Collector did not claim and complete this job within 30 minutes."] }
+  });
+  const active = await prisma.priceCollectionRun.findFirst({
+    where: { userId: user.id, status: "RUNNING", lockKey: "desktop-collector" }
+  });
+  if (!active) {
+    await prisma.priceCollectionRun.create({
+      data: { userId: user.id, status: "RUNNING", lockKey: "desktop-collector" }
+    });
+  }
+  revalidatePath("/prices");
+  revalidatePath("/dashboard");
+}
