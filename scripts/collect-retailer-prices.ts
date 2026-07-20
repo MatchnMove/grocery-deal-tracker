@@ -34,6 +34,14 @@ function packageDetails(text: string, requiredUnit: Unit) {
     if (count) return { quantity: Number(count[1]), unit: "EACH" as Unit };
     if (/dozen/.test(lower)) return { quantity: 12, unit: "EACH" as Unit };
   }
+  // PACK/TIN/JAR/LOAF/EACH describe how the grocery list buys an item. Retailers
+  // normally label those products by their net weight (for example, a 106g tin or
+  // a 700g loaf). That weight must not make the product incompatible with its list
+  // unit. Only mass and volume requirements need physical-unit conversion.
+  if (["PACK", "TIN", "JAR", "LOAF", "EACH"].includes(requiredUnit)) {
+    const count = lower.match(/(?:^|\s)(\d{1,2})\s*(?:pack|pk|each|ea)(?:\b|$)/i);
+    return { quantity: count ? Number(count[1]) : 1, unit: requiredUnit };
+  }
   if (!match) return { quantity: 1, unit: requiredUnit };
   const quantity = Number(match[1]);
   const raw = match[2].toLowerCase();
@@ -50,12 +58,32 @@ async function scrape(page: Page, store: Job["stores"][number], need: Job["requi
   if (!makeUrl) return null;
   await page.goto(makeUrl(need.name), { waitUntil: "domcontentloaded", timeout: 60_000 });
   await page.waitForTimeout(2500);
-  const candidates = await page.locator('article, [data-testid*="product"], [class*="product-card"], [class*="productCard"]').evaluateAll((nodes) =>
-    nodes.slice(0, 80).map((node) => {
-      const anchor = node.querySelector("a[href]") as HTMLAnchorElement | null;
-      return { text: (node.textContent ?? "").replace(/\s+/g, " ").trim(), href: anchor?.href ?? "" };
-    }).filter((item) => item.text && item.href)
-  );
+  const candidates = await page.evaluate(() => {
+    const clean = (value: string | null | undefined) => (value ?? "").replace(/\s+/g, " ").trim();
+    const looksLikeProductUrl = (href: string) => /\/(?:shop\/)?(?:product|products|productdetails)\b/i.test(href);
+    const found = new Map<string, { text: string; href: string }>();
+
+    const add = (node: Element, anchor?: HTMLAnchorElement | null) => {
+      const link = anchor ?? node.querySelector<HTMLAnchorElement>('a[href]');
+      if (!link?.href || !looksLikeProductUrl(link.href)) return;
+      const text = clean(node.textContent);
+      if (!text || !/\$\s*\d/.test(text)) return;
+      const previous = found.get(link.href);
+      // Prefer the smallest useful tile. Large search-page containers often include
+      // several products and would otherwise combine their names and prices.
+      if (!previous || text.length < previous.text.length) found.set(link.href, { text, href: link.href });
+    };
+
+    document.querySelectorAll('article, [data-testid*="product" i], [class*="product-card" i], [class*="productcard" i], [class*="product-tile" i], [class*="producttile" i]').forEach((node) => add(node));
+    document.querySelectorAll<HTMLAnchorElement>('a[href]').forEach((anchor) => {
+      if (!looksLikeProductUrl(anchor.href)) return;
+      let node: Element | null = anchor;
+      for (let depth = 0; node && depth < 7; depth += 1, node = node.parentElement) {
+        if (/\$\s*\d/.test(clean(node.textContent))) add(node, anchor);
+      }
+    });
+    return [...found.values()].filter((item) => item.text.length <= 1200).slice(0, 120);
+  });
   const ranked = candidates.flatMap((candidate) => {
     const lower = candidate.text.toLowerCase();
     if (need.excludedTerms.length && includesAny(lower, need.excludedTerms)) return [];
@@ -72,7 +100,11 @@ async function scrape(page: Page, store: Job["stores"][number], need: Job["requi
     return [{ candidate, pack, normal, loyalty: cheapest < normal ? cheapest : null, total: cheapest * packs }];
   }).sort((a, b) => a.total - b.total);
   const best = ranked[0];
-  if (!best) return null;
+  if (!best) {
+    console.warn(`${store.chain} ${store.branchName} / ${need.name}: found ${candidates.length} product cards, 0 acceptable priced matches`);
+    return null;
+  }
+  console.log(`${store.chain} ${store.branchName} / ${need.name}: ${best.candidate.text.slice(0, 100)} ($${(best.loyalty ?? best.normal) / 100})`);
   return { storeId: store.id, requirementId: need.id, name: best.candidate.text.slice(0, 280), packageQuantity: best.pack.quantity, packageUnit: best.pack.unit, normalPriceCents: best.normal, loyaltyPriceCents: best.loyalty, productUrl: best.candidate.href, collectedAt: new Date().toISOString(), confidence: 0.7 };
 }
 
