@@ -58,31 +58,25 @@ async function scrape(page: Page, store: Job["stores"][number], need: Job["requi
   if (!makeUrl) return null;
   await page.goto(makeUrl(need.name), { waitUntil: "domcontentloaded", timeout: 60_000 });
   await page.waitForTimeout(2500);
-  const candidates = await page.evaluate(() => {
-    const clean = (value: string | null | undefined) => (value ?? "").replace(/\s+/g, " ").trim();
-    const looksLikeProductUrl = (href: string) => /\/(?:shop\/)?(?:product|products|productdetails)\b/i.test(href);
-    const found = new Map<string, { text: string; href: string }>();
-
-    const add = (node: Element, anchor?: HTMLAnchorElement | null) => {
-      const link = anchor ?? node.querySelector<HTMLAnchorElement>('a[href]');
-      if (!link?.href || !looksLikeProductUrl(link.href)) return;
-      const text = clean(node.textContent);
-      if (!text || !/\$\s*\d/.test(text)) return;
-      const previous = found.get(link.href);
-      // Prefer the smallest useful tile. Large search-page containers often include
-      // several products and would otherwise combine their names and prices.
-      if (!previous || text.length < previous.text.length) found.set(link.href, { text, href: link.href });
-    };
-
-    document.querySelectorAll('article, [data-testid*="product" i], [class*="product-card" i], [class*="productcard" i], [class*="product-tile" i], [class*="producttile" i]').forEach((node) => add(node));
-    document.querySelectorAll<HTMLAnchorElement>('a[href]').forEach((anchor) => {
-      if (!looksLikeProductUrl(anchor.href)) return;
-      let node: Element | null = anchor;
-      for (let depth = 0; node && depth < 7; depth += 1, node = node.parentElement) {
-        if (/\$\s*\d/.test(clean(node.textContent))) add(node, anchor);
+  // Keep this callback self-contained and free of nested functions. The collector
+  // runs through tsx/esbuild, whose helper functions are unavailable inside the
+  // isolated browser execution context used by Playwright.
+  const candidates = await page.locator('a[href]').evaluateAll((nodes) => {
+    const found: Record<string, string> = {};
+    for (const node of nodes) {
+      const anchor = node as HTMLAnchorElement;
+      const href = anchor.href;
+      if (!href || !/\/(?:shop\/)?(?:product|products|productdetails)\b/i.test(href)) continue;
+      let container: Element | null = anchor;
+      for (let depth = 0; container && depth < 7; depth += 1) {
+        const text = (container.textContent ?? "").replace(/\s+/g, " ").trim();
+        if (/\$\s*\d/.test(text) && text.length <= 1200 && (!found[href] || text.length < found[href].length)) {
+          found[href] = text;
+        }
+        container = container.parentElement;
       }
-    });
-    return [...found.values()].filter((item) => item.text.length <= 1200).slice(0, 120);
+    }
+    return Object.entries(found).slice(0, 120).map(([href, text]) => ({ href, text }));
   });
   const ranked = candidates.flatMap((candidate) => {
     const lower = candidate.text.toLowerCase();
