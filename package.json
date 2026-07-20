@@ -16,7 +16,8 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
     "prices:update": "tsx scripts/update-prices.ts",
-    "collector": "tsx scripts/collect-retailer-prices.ts"
+    "collector": "tsx scripts/collect-retailer-prices.ts",
+    "collector:install": "powershell -ExecutionPolicy Bypass -File scripts/install-collector-launcher.ps1"
   },
   "dependencies": {
     "@prisma/client": "^6.13.0",
