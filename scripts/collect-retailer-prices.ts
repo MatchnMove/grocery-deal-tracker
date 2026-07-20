@@ -22,6 +22,10 @@ const retailerUrls: Record<string, (query: string) => string> = {
   "new-world": (query) => `https://www.newworld.co.nz/shop/search?q=${encodeURIComponent(query)}`
 };
 
+function searchQuery(name: string) {
+  return name.toLowerCase().includes("roast chicken") ? "cooked whole chicken" : name;
+}
+
 function includesAny(text: string, terms: string[]) {
   const lower = text.toLowerCase();
   return terms.some((term) => lower.includes(term.toLowerCase()));
@@ -57,21 +61,27 @@ function comparable(required: Unit, actual: Unit) {
 async function scrape(page: Page, store: Job["stores"][number], need: Job["requirements"][number]): Promise<Result | null> {
   const makeUrl = retailerUrls[store.chain];
   if (!makeUrl) return null;
-  await page.goto(makeUrl(need.name), { waitUntil: "domcontentloaded", timeout: 60_000 });
+  await page.goto(makeUrl(searchQuery(need.name)), { waitUntil: "domcontentloaded", timeout: 60_000 });
   await page.waitForTimeout(2500);
   // Keep this callback self-contained and free of nested functions. The collector
   // runs through tsx/esbuild, whose helper functions are unavailable inside the
   // isolated browser execution context used by Playwright.
-  const candidates = await page.locator('article, [data-testid*="product" i], [class*="product-card" i], [class*="productcard" i], [class*="product-tile" i], [class*="producttile" i], a[href]').evaluateAll((nodes) => {
+  const candidates = await page.locator('article, [data-testid*="product" i], [class*="product-card" i], [class*="productcard" i], [class*="product-tile" i], [class*="producttile" i], a[href], button, input[type="button"], input[type="submit"]').evaluateAll((nodes) => {
     const found: Record<string, string> = {};
-    for (const node of nodes) {
+    for (let index = 0; index < nodes.length; index += 1) {
+      const node = nodes[index];
+      const controlText = `${node.textContent ?? ""} ${(node as HTMLInputElement).value ?? ""} ${node.getAttribute("aria-label") ?? ""}`.trim();
+      const isAddControl = node.matches('button, input') && /\badd\b/i.test(controlText);
+      if (node.matches('button, input') && !isAddControl) continue;
       const anchor = (node.matches('a[href]') ? node : node.querySelector('a[href]')) as HTMLAnchorElement | null;
-      const href = anchor?.href ?? "";
-      if (!href || /^(?:javascript:|about:)/i.test(href)) continue;
+      const href = anchor?.href && !/^(?:javascript:|about:)/i.test(anchor.href)
+        ? anchor.href
+        : `${window.location.href}#collector-product-${index}`;
       let container: Element | null = node.matches('a[href]') ? node : node;
-      for (let depth = 0; container && depth < 7; depth += 1) {
+      for (let depth = 0; container && depth < 10; depth += 1) {
         const text = (container.textContent ?? "").replace(/\s+/g, " ").trim();
-        if (/\$\s*\d/.test(text) && text.length <= 1200 && (!found[href] || text.length < found[href].length)) {
+        const hasPrice = /\$\s*\d/.test(text) || /(?:^|\s)\d{1,3}[.\s]+\d{2}\s*(?:kg|ea|each)\b/i.test(text);
+        if (hasPrice && text.length >= 12 && text.length <= 1200 && (!found[href] || text.length < found[href].length)) {
           found[href] = text;
         }
         container = container.parentElement;
