@@ -1,0 +1,3 @@
+store,branch,product_name,brand,pack_size,unit,normal_price,loyalty_price,special_start,special_end,product_url,checked_at
+Woolworths,Greenhithe nearby branch placeholder,Free Range Eggs 18 Pack,Example Brand,18,each,12.90,11.90,2026-07-20,2026-07-27,https://example.com/eggs,2026-07-20T09:00:00+12:00
+PAK'nSAVE,North Shore branch placeholder,Beef Mince 1kg,Example Brand,1,kg,16.49,,,,https://example.com/mince,2026-07-20T09:00:00+12:00
